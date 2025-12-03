@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome{% endblock %}
+
+{% block content %}
+<div class="container">
+       <h1>Welcome to African Development Models Initiative!</h1>
+    <p style="text-align: center;">Select a module to get started:</p>
+    <div style="text-align: center; margin-top: 20px;">
+        <a href="{{ url_for('research_management') }}" class="button-link">Research Management Dashboard</a>
+        <a href="{{ url_for('survey_list') }}" class="button-link">Survey Forms & Questions</a>
+        <a href="{{ url_for('document_processing_page') }}" class="button-link">AI Document Processing</a>
+        <a href="{{ url_for('data_processing_terminal_page') }}" class="button-link">Data Processing Terminal</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Survey: {{ survey.title }}{% endblock %}
+
+{% block head_extra %}
+<style>
+    .survey-details { background-color: #f0f8ff; border: 1px solid #b0e0e6; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .question-list { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+    .question-item { background-color: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; position: relative; cursor: grab; }
+    .question-item.dragging { opacity: 0.5; border: 2px dashed #007bff; }
+    .question-item h3 { margin-top: 0; color: #555; }
+    .question-item .actions { position: absolute; top: 10px; right: 10px; }
+    .question-item .actions button { margin-left: 5px; padding: 5px 10px; cursor: pointer; }
+    .add-question-form { background-color: #e6ffe6; border: 1px solid #aaffaa; padding: 15px; border-radius: 8px; margin-top: 30px; }
+    .options-container { margin-top: 10px; padding-left: 20px; border-left: 2px solid #eee; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Edit Survey: {{ survey.title }}</h1>
+    <div class="survey-details">
+        <p><strong>ID:</strong> {{ survey.id }}</p>
+        <p><strong>Description:</strong> {{ survey.description }}</p>
+    </div>
+
+    <h2>Questions (Drag to Reorder)</h2>
+    <div id="question-list" class="question-list">
+        {% if survey.questions %}
+            {% for question in survey.questions %}
+                <div class="question-item" draggable="true" data-question-id="{{ question.id }}">
+                    <h3>{{ loop.index }}. {{ question.text }} ({{ question.type }})</h3>
+                    <p><strong>Validation:</strong> {{ question.get_validation_dict() | tojson }}</p>
+                    {% if question.options %}
+                        <p><strong>Options:</strong> {{ question.get_options_list() | join(', ') }}</p>
+                    {% endif %}
+                    {% if question.branching_logic %}
+                        <p><strong>Branching Logic:</strong> {{ question.get_branching_logic_dict() | tojson }}</p>
+                    {% endif %}
+                    <div class="actions">
+                        <button onclick="editQuestion({{ question.id }})">Edit</button>
+                        <button onclick="deleteQuestion(this, {{ question.id }})">Delete</button>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No questions added yet. Use the form below to add your first question.</p>
+        {% endif %}
+    </div>
+
+    <div class="add-question-form">
+        <h2><span id="formTitle">Add New Question</span></h2>
+        <div>
+            <label for="questionText">Question Text:</label>
+            <input type="text" id="questionText" required>
+        </div>
+        <div>
+            <label for="questionType">Question Type:</label>
+            <select id="questionType" onchange="toggleOptionsInput()">
+                <option value="text">Text Input</option>
+                <option value="number">Number Input</option>
+                <option value="multiple_choice">Multiple Choice</option>
+                <option value="checkbox">Checkbox</option>
+                <option value="date">Date</option>
+            </select>
+        </div>
+        <div id="optionsSection" class="options-container" style="display: none;">
+            <label>Options (one per line):</label>
+            <textarea id="questionOptions" rows="4"></textarea>
+        </div>
+        <div>
+            <label for="validationRules">Validation Rules (JSON format, e.g., {"required": true, "min_length": 5}):</label>
+            <textarea id="validationRules" rows="2">{}</textarea>
+        </div>
+        <div>
+            <label for="branchingLogic">Branching Logic (JSON format, e.g., {"if_answer": "Yes", "show_question_id": 5}):</label>
+            <textarea id="branchingLogic" rows="2">{}</textarea>
+        </div>
+        <button id="submitQuestionBtn" onclick="handleQuestionSubmit()">Add Question</button>
+        <button id="cancelEditBtn" class="button-secondary" onclick="cancelEdit()" style="display:none;">Cancel Edit</button>
+    </div>
+
+    <a href="{{ url_for('survey_list') }}" class="button-link">Back to Survey List</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const surveyId = {{ survey.id }};
+    const questionListDiv = document.getElementById('question-list');
+    let editingQuestionId = null;
+
+    const questionTextElem = document.getElementById('questionText');
+    const questionTypeElem = document.getElementById('questionType');
+    const questionOptionsElem = document.getElementById('questionOptions');
+    const validationRulesElem = document.getElementById('validationRules');
+    const branchingLogicElem = document.getElementById('branchingLogic');
+    const optionsSectionElem = document.getElementById('optionsSection');
+    const formTitleElem = document.getElementById('formTitle');
+    const submitQuestionBtn = document.getElementById('submitQuestionBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+
+    function toggleOptionsInput() {
+        const questionType = questionTypeElem.value;
+        optionsSectionElem.style.display = (questionType === 'multiple_choice' || questionType === 'checkbox') ? 'block' : 'none';
+    }
+
+    function resetForm() {
+        editingQuestionId = null;
+        questionTextElem.value = '';
+        questionTypeElem.value = 'text';
+        questionOptionsElem.value = '';
+        validationRulesElem.value = '{}';
+        branchingLogicElem.value = '{}';
+        toggleOptionsInput();
+        formTitleElem.textContent = 'Add New Question';
+        submitQuestionBtn.textContent = 'Add Question';
+        cancelEditBtn.style.display = 'none';
+    }
+
+    async function handleQuestionSubmit() {
+        const questionText = questionTextElem.value;
+        if (!questionText) {
+            alert('Question text cannot be empty.');
+            return;
+        }
+
+        let optionsArray = [];
+        if (questionTypeElem.value === 'multiple_choice' || questionTypeElem.value === 'checkbox') {
+            optionsArray = questionOptionsElem.value.split('\n').map(opt => opt.trim()).filter(opt => opt);
+            if (optionsArray.length === 0) {
+                alert('Please add at least one option for Multiple Choice/Checkbox questions.');
+                return;
+            }
+        }
+
+        let parsedValidation = {};
+        try {
+            parsedValidation = JSON.parse(validationRulesElem.value);
+        } catch (e) {
+            alert('Invalid JSON for Validation Rules.');
+            return;
+        }
+
+        let parsedBranchingLogic = {};
+        try {
+            parsedBranchingLogic = JSON.parse(branchingLogicElem.value);
+        } catch (e) {
+            alert('Invalid JSON for Branching Logic.');
+            return;
+        }
+
+        const method = editingQuestionId ? 'PUT' : 'POST';
+        const url = editingQuestionId ? `/api/surveys/${surveyId}/questions/${editingQuestionId}` : `/api/surveys/${surveyId}/questions`;
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                question_text: questionText,
+                question_type: questionTypeElem.value,
+                options: optionsArray,
+                validation: parsedValidation,
+                branching_logic: parsedBranchingLogic
+            }),
+        });
+
+        if (response.ok) {
+            const updatedQuestion = await response.json();
+            alert(`Question ${editingQuestionId ? 'updated' : 'added'} successfully!`);
+            location.reload(); // Simple reload to see changes
+        } else {
+            const errorData = await response.json();
+            alert(`Error: ${errorData.error || response.statusText}`);
+        }
+    }
+
+    async function editQuestion(questionId) {
+        const response = await fetch(`/api/surveys/${surveyId}/questions/${questionId}`);
+        if (response.ok) {
+            const question = await response.json();
+            editingQuestionId = question.id;
+            questionTextElem.value = question.text;
+            questionTypeElem.value = question.type;
+            questionOptionsElem.value = question.options.join('\n');
+            validationRulesElem.value = JSON.stringify(question.validation, null, 2);
+            branchingLogicElem.value = JSON.stringify(question.branching_logic, null, 2);
+            toggleOptionsInput();
+            formTitleElem.textContent = 'Edit Question';
+            submitQuestionBtn.textContent = 'Update Question';
+            cancelEditBtn.style.display = 'inline-block';
+        } else {
+            alert('Error fetching question for editing.');
+        }
+    }
+
+    async function deleteQuestion(buttonElement, questionId) {
+        if (!confirm('Are you sure you want to delete this question?')) return;
+        const response = await fetch(`/api/surveys/${surveyId}/questions/${questionId}`, { method: 'DELETE' });
+        if (response.ok) {
+            alert('Question deleted successfully!');
+            location.reload();
+        } else {
+            const errorData = await response.json();
+            alert(`Error: ${errorData.error || response.statusText}`);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        toggleOptionsInput();
+        resetForm();
+    });
+</script>
+{% endblock %}

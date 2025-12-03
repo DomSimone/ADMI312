@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Survey Management{% endblock %}
+
+{% block head_extra %}
+<style>
+    .survey-list { margin-top: 20px; }
+    .survey-item { background-color: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+    .survey-item-info { flex-grow: 1; }
+    .survey-item-info p { margin: 0; }
+    .survey-actions { display: flex; gap: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Survey Management</h1>
+    <a href="{{ url_for('create_survey') }}" class="button-link">Create New Survey</a>
+
+    <div class="survey-list">
+        {% if surveys %}
+            {% for survey in surveys %}
+                <div class="survey-item">
+                    <div class="survey-item-info">
+                        <p><strong>{{ survey.title }}</strong> (ID: {{ survey.id }})</p>
+                    </div>
+                    <div class="survey-actions">
+                        <a href="{{ url_for('edit_survey', survey_id=survey.id) }}" class="button-link">Edit Design</a>
+                        <a href="{{ url_for('take_survey', survey_id=survey.id) }}" class="button-link">Take Survey</a>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No surveys created yet. Click "Create New Survey" to get started.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

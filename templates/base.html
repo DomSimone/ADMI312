@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ADMI{% endblock %} - African Development Models Initiative</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <header class="header">
+        <a href="{{ url_for('index') }}">
+            <img src="{{ url_for('static', filename='images/logo.png') }}" alt="App Logo" class="logo">
+        </a>
+        <nav class="nav-links">
+            <a href="{{ url_for('research_management') }}">Research Dashboard</a>
+            <a href="{{ url_for('survey_list') }}">Survey Management</a>
+            <a href="{{ url_for('document_processing_page') }}">AI Document Processing</a>
+            <a href="{{ url_for('data_processing_terminal_page') }}">Data Terminal</a>
+            <a href="{{ url_for('about_page') }}">About Us</a>
+            <a href="{{ url_for('terms_page') }}">Terms of Use</a>
+            <a href="{{ url_for('contact_page') }}">Contact Us</a>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>&copy; <span id="copyright-year"></span> African Development Models Initiative. All Rights Reserved.</p>
+        <p>
+            <a href="{{ url_for('terms_page') }}">Terms of Use</a> |
+            <a href="{{ url_for('about_page') }}">About Us</a> |
+            <a href="{{ url_for('contact_page') }}">Contact Us</a>
+        </p>
+    </footer>
+
+    <!-- jQuery (DataTables dependency) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- DataTables JS -->
+    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    
+    <script>
+        // Set copyright year dynamically
+        document.getElementById('copyright-year').textContent = new Date().getFullYear();
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

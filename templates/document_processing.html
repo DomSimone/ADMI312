@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}AI Document Processing{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>AI Document Processing</h1>
+
+    <div class="section">
+        <h2>1. Document Ingestion</h2>
+        <form id="documentUploadForm" enctype="multipart/form-data">
+            <label for="documents">Upload Documents (PDF, Images, CSV):</label>
+            <input type="file" id="documents" name="documents" accept=".pdf,.csv,.png,.jpg,.jpeg,.webp" multiple>
+            <button type="submit" class="button-link">Upload Documents</button>
+        </form>
+        <div id="uploadMessage" class="message" style="display:none;"></div>
+        <div id="uploadedFilesList" class="file-list"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Structured Output Prompting & Generative AI Extraction</h2>
+        <label for="extractionPrompt">Extraction Prompt:</label>
+        <textarea id="extractionPrompt" placeholder="e.g., For an image of an invoice, ask: 'Extract the invoice number, total amount, and vendor name. Format as JSON.' For a PDF, ask: 'Summarize the key findings on page 1.'"></textarea>
+        
+        <label for="outputFormat">Output Format:</label>
+        <select id="outputFormat">
+            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
+        </select>
+        <button onclick="processDocuments()" class="button-link">Process Documents</button>
+        <div id="processMessage" class="message" style="display:none;"></div>
+        
+        <h3>Extracted Output:</h3>
+        <pre id="extractedOutput"></pre>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let uploadedDocumentNames = [];
+
+    function showMessage(elementId, message, type) {
+        const element = document.getElementById(elementId);
+        element.textContent = message;
+        element.className = `message ${type}`;
+        element.style.display = 'block';
+    }
+
+    function clearMessage(elementId) {
+        const element = document.getElementById(elementId);
+        element.textContent = '';
+        element.style.display = 'none';
+    }
+
+    function updateFileList(listElementId, filenames) {
+        const listElement = document.getElementById(listElementId);
+        listElement.innerHTML = '';
+        if (filenames.length > 0) {
+            filenames.forEach(name => {
+                const span = document.createElement('span');
+                span.textContent = name;
+                listElement.appendChild(span);
+            });
+        } else {
+            listElement.textContent = 'No files uploaded yet.';
+        }
+    }
+
+    document.getElementById('documentUploadForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        clearMessage('uploadMessage');
+        uploadedDocumentNames = [];
+
+        const formData = new FormData();
+        const files = document.getElementById('documents').files;
+
+        if (files.length === 0) {
+            showMessage('uploadMessage', 'Please select documents to upload.', 'error');
+            return;
+        }
+        if (files.length > 30) {
+            showMessage('uploadMessage', 'Maximum 30 documents allowed at a time.', 'error');
+            return;
+        }
+
+        for (let i = 0; i < files.length; i++) {
+            formData.append('documents', files[i]);
+        }
+
+        try {
+            const response = await fetch('/api/upload_documents', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (response.ok) {
+                showMessage('uploadMessage', data.message, 'success');
+                uploadedDocumentNames = data.filenames;
+                updateFileList('uploadedFilesList', uploadedDocumentNames);
+            } else {
+                showMessage('uploadMessage', `Upload failed: ${data.error}`, 'error');
+                console.error('Upload failed with data:', data);
+            }
+        } catch (error) {
+            console.error('Network or server error during upload:', error);
+            showMessage('uploadMessage', `An error occurred during upload. Check the console for details.`, 'error');
+        }
+    });
+
+    async function processDocuments() {
+        clearMessage('processMessage');
+        document.getElementById('extractedOutput').textContent = 'Processing... This may take a moment...';
+
+        if (uploadedDocumentNames.length === 0) {
+            showMessage('processMessage', 'Please upload documents first.', 'error');
+            return;
+        }
+
+        const prompt = document.getElementById('extractionPrompt').value;
+        if (!prompt.trim()) {
+            showMessage('processMessage', 'Please provide an extraction prompt.', 'error');
+            return;
+        }
+
+        const outputFormat = document.getElementById('outputFormat').value;
+
+        try {
+            const response = await fetch('/api/process_document', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filenames: uploadedDocumentNames,
+                    prompt: prompt,
+                    output_format: outputFormat
+                }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+                showMessage('processMessage', 'Documents processed successfully!', 'success');
+                document.getElementById('extractedOutput').textContent = data.result;
+            } else {
+                showMessage('processMessage', `Error: ${data.error}`, 'error');
+                document.getElementById('extractedOutput').textContent = '';
+            }
+        } catch (error) {
+            console.error('Network or server error during processing:', error);
+            showMessage('processMessage', 'An unexpected error occurred during processing. Check the console for details.', 'error');
+            document.getElementById('extractedOutput').textContent = '';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        updateFileList('uploadedFilesList', []);
+    });
+</script>
+{% endblock %}

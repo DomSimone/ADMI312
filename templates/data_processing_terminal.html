@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Data Processing Terminal{% endblock %}
+
+{% block head_extra %}
+<style>
+    .section { margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px; background-color: #fdfdfd; }
+    textarea { font-family: 'Consolas', 'Monaco', monospace; font-size: 0.95em; }
+    #csvData { min-height: 150px; }
+    #commandInput { min-height: 60px; }
+    pre { background-color: #eee; padding: 15px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; font-family: 'Consolas', 'Monaco', monospace; }
+    #graphOutput img { max-width: 100%; height: auto; border: 1px solid #ddd; display: block; margin-top: 15px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Data Processing Terminal</h1>
+
+    <div class="section">
+        <h2>1. Input Data (CSV)</h2>
+        <label for="csvData">Paste your CSV data here:</label>
+        <textarea id="csvData" placeholder="e.g.,&#10;Name,Age,Score&#10;Alice,25,85&#10;Bob,30,92&#10;Charlie,22,78&#10;David,35,88"></textarea>
+        <p>Or upload a CSV file: <input type="file" id="csvFileUpload" accept=".csv"></p>
+    </div>
+
+    <div class="section">
+        <h2>2. Enter Command</h2>
+        <label for="commandInput">Enter your data processing command:</label>
+        <textarea id="commandInput" placeholder="e.g.,&#10;linear regression on Age vs Score&#10;plot histogram of Score&#10;describe&#10;head"></textarea>
+        <button onclick="executeCommand()">Execute Command</button>
+        <div id="commandMessage" class="message" style="display:none;"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. Results</h2>
+        <h3>Textual Output:</h3>
+        <pre id="textOutput"></pre>
+        <h3>Graphical Output:</h3>
+        <div id="graphOutput">
+            <p>Graphs will appear here.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const csvDataElem = document.getElementById('csvData');
+    const csvFileUploadElem = document.getElementById('csvFileUpload');
+    const commandInputElem = document.getElementById('commandInput');
+    const textOutputElem = document.getElementById('textOutput');
+    const graphOutputElem = document.getElementById('graphOutput');
+    const commandMessageElem = document.getElementById('commandMessage');
+
+    function showMessage(element, message, type) {
+        element.textContent = message;
+        element.className = `message ${type}`;
+        element.style.display = 'block';
+    }
+
+    function clearMessage(element) {
+        element.textContent = '';
+        element.style.display = 'none';
+    }
+
+    csvFileUploadElem.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                csvDataElem.value = e.target.result;
+                clearMessage(commandMessageElem);
+            };
+            reader.readAsText(file);
+        }
+    });
+
+    async function executeCommand() {
+        clearMessage(commandMessageElem);
+        textOutputElem.textContent = '';
+        graphOutputElem.innerHTML = '<p>Graphs will appear here.</p>';
+
+        const csvData = csvDataElem.value;
+        const command = commandInputElem.value;
+
+        if (!csvData.trim()) {
+            showMessage(commandMessageElem, 'Please provide CSV data.', 'error');
+            return;
+        }
+        if (!command.trim()) {
+            showMessage(commandMessageElem, 'Please enter a command.', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/process_data_command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ csv_data: csvData, command: command }),
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.result_text) textOutputElem.textContent = data.result_text;
+                if (data.graph_base64) {
+                    graphOutputElem.innerHTML = `<img src="data:image/png;base64,${data.graph_base64}" alt="Generated Graph">`;
+                } else if (!data.result_text) {
+                    textOutputElem.textContent = "Command executed, but no specific output or graph was generated.";
+                }
+                showMessage(commandMessageElem, 'Command executed successfully!', 'success');
+            } else {
+                showMessage(commandMessageElem, data.error, 'error');
+            }
+        } catch (error) {
+            showMessage(commandMessageElem, 'An error occurred while executing the command.', 'error');
+        }
+    }
+</script>
+{% endblock %}

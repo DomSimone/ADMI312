@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Us{% endblock %}
+
+{% block head_extra %}
+<style>
+    .container { max-width: 700px; }
+    .contact-form div { margin-bottom: 15px; }
+    .contact-form button { background-color: #28a745; width: 100%; }
+    .contact-form button:hover { background-color: #218838; }
+    .form-notice { margin-top: 20px; padding: 15px; background-color: #e9f7ef; border: 1px solid #d0e9da; border-radius: 5px; text-align: center; font-size: 0.9em; color: #3c763d; }
+    .privacy-link { margin-top: 10px; text-align: center; font-size: 0.9em; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Contact Us</h1>
+    <p style="text-align: center;">We'd love to hear from you! Please fill out the form below for any general inquiries.</p>
+
+    <form class="contact-form" action="#" method="POST">
+        <div>
+            <label for="fullName">Full Name:</label>
+            <input type="text" id="fullName" name="fullName" required>
+        </div>
+        <div>
+            <label for="emailAddress">Email Address:</label>
+            <input type="email" id="emailAddress" name="emailAddress" required>
+        </div>
+        <div>
+            <label for="phoneNumber">Phone Number (Optional):</label>
+            <input type="tel" id="phoneNumber" name="phoneNumber">
+        </div>
+        <div>
+            <label for="inquiryDetails">Message/Inquiry Details:</label>
+            <textarea id="inquiryDetails" name="inquiryDetails" required></textarea>
+        </div>
+        <button type="submit">Send Message</button>
+    </form>
+
+    <div class="form-notice">
+        <p>We aim to reply to all inquiries within 1 business day.</p>
+    </div>
+    <div class="privacy-link">
+        <p>For Security and Privacy, please refer to our <a href="{{ url_for('terms_page') }}">Terms of Use</a>.</p>
+    </div>
+    
+    <a href="{{ url_for('index') }}" class="button-link" style="margin-top: 20px;">Back to Home</a>
+</div>
+{% endblock %}

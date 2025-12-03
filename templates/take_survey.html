@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Take Survey: {{ survey.title }}{% endblock %}
+
+{% block head_extra %}
+<style>
+    .question-container { margin-bottom: 25px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 5px; background-color: #fdfdfd; }
+    .question-container.hidden { display: none; }
+    .question-container .options-group label { font-weight: normal; display: inline-block; margin-left: 5px; margin-right: 15px; }
+    .question-container .options-group input[type="radio"],
+    .question-container .options-group input[type="checkbox"] { margin-right: 5px; }
+    .error-message { color: #e74c3c; font-size: 0.9em; margin-top: 5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>{{ survey.title }}</h1>
+    <p style="text-align: center; color: #6c757d;">{{ survey.description }}</p>
+
+    <form id="surveyForm">
+        {% for question in questions_data %}
+            <div class="question-container" id="question-{{ question.id }}" data-question-id="{{ question.id }}">
+                <label for="q-{{ question.id }}">{{ loop.index }}. {{ question.text }}</label>
+                {% if question.type == 'text' %}
+                    <input type="text" id="q-{{ question.id }}" name="q-{{ question.id }}">
+                {% elif question.type == 'number' %}
+                    <input type="number" id="q-{{ question.id }}" name="q-{{ question.id }}">
+                {% elif question.type == 'date' %}
+                    <input type="date" id="q-{{ question.id }}" name="q-{{ question.id }}">
+                {% elif question.type == 'multiple_choice' %}
+                    <div class="options-group">
+                        {% for option in question.options %}
+                            <input type="radio" id="q-{{ question.id }}-{{ loop.index }}" name="q-{{ question.id }}" value="{{ option }}">
+                            <label for="q-{{ question.id }}-{{ loop.index }}">{{ option }}</label><br>
+                        {% endfor %}
+                    </div>
+                {% elif question.type == 'checkbox' %}
+                    <div class="options-group">
+                        {% for option in question.options %}
+                            <input type="checkbox" id="q-{{ question.id }}-{{ loop.index }}" name="q-{{ question.id }}" value="{{ option }}">
+                            <label for="q-{{ question.id }}-{{ loop.index }}">{{ option }}</label><br>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <div id="error-q-{{ question.id }}" class="error-message"></div>
+            </div>
+        {% endfor %}
+        <button type="submit" class="button-link">Submit Survey</button>
+    </form>
+    <a href="{{ url_for('survey_list') }}" class="button-link" style="margin-top: 20px;">Back to Survey List</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const surveyId = {{ survey.id }};
+    const questions_from_flask = {{ questions_data | tojson }};
+    const questions = questions_from_flask.map(q => {
+        const qElem = document.getElementById(`question-${q.id}`);
+        return {
+            id: q.id,
+            type: q.type,
+            element: qElem,
+            inputElement: qElem ? qElem.querySelector(`[name="q-${q.id}"]`) : null,
+            errorElement: qElem ? document.getElementById(`error-q-${q.id}`) : null,
+            validation: q.validation,
+            branchingLogic: q.branching_logic,
+            isVisible: true
+        };
+    });
+
+    const surveyForm = document.getElementById('surveyForm');
+
+    function validateQuestion(question) {
+        const value = getQuestionValue(question);
+        if (question.errorElement) question.errorElement.textContent = '';
+        let isValid = true;
+
+        if (question.validation.required && (!value || (Array.isArray(value) && value.length === 0))) {
+            if (question.errorElement) question.errorElement.textContent = 'This field is required.';
+            isValid = false;
+        }
+        // Add other validation logic here...
+        return isValid;
+    }
+
+    function getQuestionValue(question) {
+        if (question.type === 'checkbox') {
+            return Array.from(question.element.querySelectorAll(`input[name="q-${question.id}"]:checked`)).map(cb => cb.value);
+        } else if (question.type === 'multiple_choice') {
+            const selectedRadio = question.element.querySelector(`input[name="q-${question.id}"]:checked`);
+            return selectedRadio ? selectedRadio.value : null;
+        }
+        return question.inputElement ? question.inputElement.value : null;
+    }
+
+    function applyBranchingLogic() {
+        questions.forEach(currentQuestion => {
+            const logic = currentQuestion.branchingLogic;
+            if (Object.keys(logic).length > 0 && logic.if_answer !== undefined && logic.show_question_id !== undefined) {
+                const targetQuestion = questions.find(q => q.id === logic.show_question_id);
+                if (targetQuestion) {
+                    const controllingAnswer = getQuestionValue(currentQuestion);
+                    const shouldShow = controllingAnswer === logic.if_answer;
+                    targetQuestion.element.classList.toggle('hidden', !shouldShow);
+                    targetQuestion.isVisible = shouldShow;
+                }
+            }
+        });
+    }
+
+    questions.forEach(question => {
+        if (question.element) {
+            question.element.addEventListener('change', applyBranchingLogic);
+        }
+    });
+
+    surveyForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        let allValid = true;
+        const answers = {};
+
+        questions.forEach(question => {
+            if (question.isVisible) {
+                if (!validateQuestion(question)) allValid = false;
+                answers[question.id] = getQuestionValue(question);
+            }
+        });
+
+        if (!allValid) {
+            alert('Please correct the errors in the form.');
+            return;
+        }
+
+        const response = await fetch(`/api/surveys/${surveyId}/submit_response`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ timestamp: new Date().toISOString(), answers: answers }),
+        });
+
+        if (response.ok) {
+            alert('Survey submitted successfully!');
+            window.location.href = "{{ url_for('survey_list') }}";
+        } else {
+            const errorData = await response.json();
+            alert(`Error: ${errorData.error || response.statusText}`);
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', applyBranchingLogic);
+</script>
+{% endblock %}
